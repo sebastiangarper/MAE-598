@@ -1,3 +1,8 @@
+## MAE-598 Project 1
+## Sebastian Garcia Peralta
+#1213082648
+
+
 # overhead
 
 import logging
