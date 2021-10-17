@@ -182,3 +182,18 @@ c = Controller(dim_input, dim_hidden, dim_output)  # define controller
 s = Simulation(c, d, T)  # define simulation
 o = Optimize(s)  # define optimizer
 o.train(40)  # solve the optimization problem
+
+## Bayesian optimization implementation
+
+from bayes_opt import BayesianOptimization
+
+v = state
+
+def function(c,a):
+    return c*dens*v^2*a/2
+
+pbounds = {'c':(0,1.2),'A':(0,1)}
+
+optimizer = BayesianOptimization(f=function,pbounds=pbounds,random_state=1)
+optimizer.maximize(init_points=2,n_iter=10)
+print(optimizer.max)
