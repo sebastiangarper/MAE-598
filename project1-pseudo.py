@@ -25,8 +25,8 @@ GRAVITY_ACCEL = 0.12  # gravity constant
 BOOST_ACCEL = 0.18  # thrust constant
 
 # # the following parameters are not being used in the sample code
-# PLATFORM_WIDTH = 0.25  # landing platform width
-# PLATFORM_HEIGHT = 0.06  # landing platform height
+PLATFORM_WIDTH = 0.25  # landing platform width
+PLATFORM_HEIGHT = 0.06  # landing platform height
 # ROTATION_ACCEL = 20  # rotation constant
 
 # define system dynamics
@@ -77,6 +77,9 @@ class Dynamics(nn.Module):
 # 1. nn.Sigmoid outputs values from 0 to 1, nn.Tanh from -1 to 1
 # 2. You have all the freedom to make the network wider (by increasing "dim_hidden") or deeper (by adding more lines to nn.Sequential)
 # 3. Always start with something simple
+
+
+
 
 class Controller(nn.Module):
 
@@ -168,8 +171,8 @@ class Optimize:
         data = np.array([self.simulation.state_trajectory[i].detach().numpy() for i in range(self.simulation.T)])
         x = data[:, 0]
         y = data[:, 1]
-        plt.plot(x, y)
-        plt.show()
+        #plt.plot(x, y)
+        #plt.show()
 
 # Now it's time to run the code!
 
@@ -187,12 +190,17 @@ o.train(40)  # solve the optimization problem
 
 from bayes_opt import BayesianOptimization
 
-v = state
+
+dens = 1.225 #kg/m^3
+
+v = t.tensor(np.linspace(0,1,40))
+#v = state
+
 
 def function(c,a):
     return c*dens*v^2*a/2
 
-pbounds = {'c':(0,1.2),'A':(0,1)}
+pbounds = {'c':(0,1.2),'a':(0,1)}
 
 optimizer = BayesianOptimization(f=function,pbounds=pbounds,random_state=1)
 optimizer.maximize(init_points=2,n_iter=10)
