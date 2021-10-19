@@ -186,22 +186,24 @@ s = Simulation(c, d, T)  # define simulation
 o = Optimize(s)  # define optimizer
 o.train(40)  # solve the optimization problem
 
-## Bayesian optimization implementation
-
+## Bayesian optimization implementation of drag
+import numpy as np
 from bayes_opt import BayesianOptimization
 
-
 dens = 1.225 #kg/m^3
+vel = np.linspace(0,-0.16, num=10)
 
-v = t.tensor(np.linspace(0,1,40))
-#v = state
+def drag(c,a):
+    return 1/((c*dens*vel**2*a)/2)
+
+pbounds = {'c':(0.1,1.2),'a':(0.1,1)}
+
+for vel in range(1,len(vel)):
+
+    optimizer = BayesianOptimization(f=drag, pbounds=pbounds, random_state=1)
+    optimizer.maximize(init_points=2,n_iter=5)
+    print(optimizer.max)
+velocity = []
 
 
-def function(c,a):
-    return c*dens*v^2*a/2
 
-pbounds = {'c':(0,1.2),'a':(0,1)}
-
-optimizer = BayesianOptimization(f=function,pbounds=pbounds,random_state=1)
-optimizer.maximize(init_points=2,n_iter=10)
-print(optimizer.max)
