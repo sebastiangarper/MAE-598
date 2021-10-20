@@ -128,13 +128,30 @@ class Simulation(nn.Module):
             self.state_trajectory.append(state)
         return self.error(state)
 
+    # @staticmethod
+    # def initialize_state():
+    #     state = [1., 0.]  # TODO: need batch of initial states
+    #     return t.tensor(state, requires_grad=False).float()
+    #
+    # def error(self, state):
+    #     return state[0] ** 2 + state[1] ** 2
+
     @staticmethod
     def initialize_state():
-        state = [1., 0.]  # TODO: need batch of initial states
+        num = 2
+        randlimit = 0.25
+        limitdev = randlimit/3
+        state = [[1-random.gauss(0,limitdev), 0]]  # TODO: need batch of initial states
+        for i in range(num-1):
+            state.append([1-random.gauss(0,limitdev), 0])
         return t.tensor(state, requires_grad=False).float()
 
     def error(self, state):
-        return state[0]**2 + state[1]**2
+        errorsum = 0
+        num = 2
+        for i in range(num):
+            errorsum+=state[i,0]**2+state[i,1]**2
+        return errorsum/len(state)
 
 
 # set up the optimizer
@@ -187,23 +204,22 @@ o = Optimize(s)  # define optimizer
 o.train(40)  # solve the optimization problem
 
 ## Bayesian optimization implementation of drag
-import numpy as np
-from bayes_opt import BayesianOptimization
-
-dens = 1.225 #kg/m^3
-vel = np.linspace(0,-0.16, num=10)
-
-def drag(c,a):
-    return 1/((c*dens*vel**2*a)/2)
-
-pbounds = {'c':(0.1,1.2),'a':(0.1,1)}
-
-for vel in range(1,len(vel)):
-
-    optimizer = BayesianOptimization(f=drag, pbounds=pbounds, random_state=1)
-    optimizer.maximize(init_points=2,n_iter=5)
-    print(optimizer.max)
-velocity = []
+# import numpy as np
+# from bayes_opt import BayesianOptimization
+#
+# dens = 1.225 #kg/m^3
+# vel = np.linspace(0,-0.16, num=10)
+#
+# def drag(c,a):
+#     return (c*dens*vel**2*a)/2
+#
+# pbounds = {'c':(0.1,1.5),'a':(0.1,2)}
+#
+# for vel in range(1,len(vel)):
+#
+#     optimizer = BayesianOptimization(f=drag, pbounds=pbounds, random_state=1)
+#     optimizer.maximize(init_points=2,n_iter=5)
+#     print(optimizer.max)
 
 
 
