@@ -23,10 +23,11 @@ logger = logging.getLogger(__name__)
 FRAME_TIME = 0.1  # time interval
 GRAVITY_ACCEL = 0.12  # gravity constant
 BOOST_ACCEL = 0.18  # thrust constant
+DRAG_CON = 0.05 #acts as the whole force
 
 # # the following parameters are not being used in the sample code
-PLATFORM_WIDTH = 0.25  # landing platform width
-PLATFORM_HEIGHT = 0.06  # landing platform height
+#PLATFORM_WIDTH = 0.25  # landing platform width
+#PLATFORM_HEIGHT = 0.06  # landing platform height
 # ROTATION_ACCEL = 20  # rotation constant
 
 # define system dynamics
@@ -45,29 +46,39 @@ class Dynamics(nn.Module):
     def forward(state, action):
         """
         action: thrust or no thrust
-        state[0] = y
-        state[1] = y_dot
+        state[0] = x
+        state[1] = y
+        state[2] = x_dot
+        state[3] = y_dot
         """
 
-        # Apply gravity
-        # Note: Here gravity is used to change velocity which is the second element of the state vector
-        # Normally, we would do x[1] = x[1] + gravity * delta_time
-        # but this is not allowed in PyTorch since it overwrites one variable (x[1]) that is part of the computational graph to be differentiated.
-        # Therefore, I define a tensor dx = [0., gravity * delta_time], and do x = x + dx. This is allowed...
-        delta_state_gravity = t.tensor([0., GRAVITY_ACCEL * FRAME_TIME])
+# Initialize a matrix for new delta states
+        matrix_deltastate = []
+        for i in range(len(state)):
 
-        # Thrust
-        # Note: Same reason as above. Need a 2-by-1 tensor.
-        delta_state = BOOST_ACCEL * FRAME_TIME * t.tensor([0., -1.]) * action
+            #Consider gravity
+            dstate_grav = t.tensor([0.,0.,0.,-GRAVITY_ACCEL*FRAME_TIME])
 
-        # Update velocity
-        state = state + delta_state + delta_state_gravity
+            #Add Drag to the problem
+            dstate_drag = t.tensor([0.,0.,0.,-DRAG_CON*FRAME_TIME])
 
-        # Update state
-        # Note: Same as above. Use operators on matrices/tensors as much as possible. Do not use element-wise operators as they are considered inplace.
-        step_mat = t.tensor([[1., FRAME_TIME],
-                             [0., 1.]])
-        state = t.matmul(step_mat, state)
+            #Consider thrust
+            dstate_trust = BOOST_ACCEL * FRAME_TIME * t.tensor([0., 0., 1., 1.]) * t.cat((t.zeros(2), action[i])) #need to implement action variable into problem in a better way.
+
+
+            dstate = dstate_trust + dstate_drag + dstate_grav
+            matrix_deltastate.append(dstate)
+        dstate_mat_t = t.stack(matrix_deltastate)
+
+        #Velocity
+        state = state+dstate_mat_t
+
+        #Position
+        step_mat = t.tensor([[1., 0., 0., 0.],
+                            [0., 1., 0., 0.],
+                            [FRAME_TIME, 0., 1., 0.],
+                            [0., FRAME_TIME, 0., 1]])
+        state = t.matmul(state,step_mat)
 
         return state
 
@@ -77,8 +88,6 @@ class Dynamics(nn.Module):
 # 1. nn.Sigmoid outputs values from 0 to 1, nn.Tanh from -1 to 1
 # 2. You have all the freedom to make the network wider (by increasing "dim_hidden") or deeper (by adding more lines to nn.Sequential)
 # 3. Always start with something simple
-
-
 
 
 class Controller(nn.Module):
@@ -128,30 +137,30 @@ class Simulation(nn.Module):
             self.state_trajectory.append(state)
         return self.error(state)
 
-    # @staticmethod
-    # def initialize_state():
-    #     state = [1., 0.]  # TODO: need batch of initial states
-    #     return t.tensor(state, requires_grad=False).float()
-    #
-    # def error(self, state):
-    #     return state[0] ** 2 + state[1] ** 2
-
     @staticmethod
     def initialize_state():
-        num = 2
-        randlimit = 0.25
-        limitdev = randlimit/3
-        state = [[1-random.gauss(0,limitdev), 0]]  # TODO: need batch of initial states
-        for i in range(num-1):
-            state.append([1-random.gauss(0,limitdev), 0])
+        state = [0.1, 1.,0.,0.]  # TODO: need batch of initial states
         return t.tensor(state, requires_grad=False).float()
 
     def error(self, state):
-        errorsum = 0
-        num = 2
-        for i in range(num):
-            errorsum+=state[i,0]**2+state[i,1]**2
-        return errorsum/len(state)
+        return state[0] ** 2 + state[1] ** 2 +state[2] ** 2+ state[3] ** 2
+
+    # @staticmethod
+    # def initialize_state():
+    #     num = 2
+    #     randlimit = 0.25
+    #     limitdev = randlimit/3
+    #     state = [[1-random.gauss(0,limitdev), 0]]  # TODO: need batch of initial states
+    #     for i in range(num-1):
+    #         state.append([1-random.gauss(0,limitdev), 0])
+    #     return t.tensor(state, requires_grad=False).float()
+    #
+    # def error(self, state):
+    #     errorsum = 0
+    #     num = 2
+    #     for i in range(num):
+    #         errorsum+=state[i,0]**2+state[i,1]**2
+    #     return errorsum/len(state)
 
 
 # set up the optimizer
@@ -174,52 +183,36 @@ class Optimize:
             self.optimizer.zero_grad()
             loss.backward()
             return loss
-
         self.optimizer.step(closure)
         return closure()
 
     def train(self, epochs):
         for epoch in range(epochs):
             loss = self.step()
+            self.loss = loss
             print('[%d] loss: %.3f' % (epoch + 1, loss))
             self.visualize()
 
-    def visualize(self):
-        data = np.array([self.simulation.state_trajectory[i].detach().numpy() for i in range(self.simulation.T)])
-        x = data[:, 0]
-        y = data[:, 1]
-        #plt.plot(x, y)
-        #plt.show()
+    # def visualize(self):
+    #     data = np.array([self.simulation.state_trajectory[i].detach().numpy() for i in range(self.simulation.T)])
+    #     x = data[:, 0]
+    #     y = data[:, 1]
+    #     #plt.plot(x, y)
+    #     #plt.show()
 
 # Now it's time to run the code!
 
 T = 100  # number of time steps
-dim_input = 2  # state space dimensions
+dim_input = 4  # state space dimensions
 dim_hidden = 6  # latent dimensions
-dim_output = 1  # action space dimensions
+dim_output = 2  # action space dimensions
 d = Dynamics()  # define dynamics
 c = Controller(dim_input, dim_hidden, dim_output)  # define controller
 s = Simulation(c, d, T)  # define simulation
 o = Optimize(s)  # define optimizer
 o.train(40)  # solve the optimization problem
 
-## Bayesian optimization implementation of drag
-# import numpy as np
-# from bayes_opt import BayesianOptimization
-#
-# dens = 1.225 #kg/m^3
-# vel = np.linspace(0,-0.16, num=10)
-#
-# def drag(c,a):
-#     return (c*dens*vel**2*a)/2
-#
-# pbounds = {'c':(0.1,1.5),'a':(0.1,2)}
-#
-# for vel in range(1,len(vel)):
-#
-#     optimizer = BayesianOptimization(f=drag, pbounds=pbounds, random_state=1)
-#     optimizer.maximize(init_points=2,n_iter=5)
-#     print(optimizer.max)
+
 
 
 
