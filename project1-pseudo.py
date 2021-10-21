@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 FRAME_TIME = 0.1  # time interval
 GRAVITY_ACCEL = 0.12  # gravity constant
 BOOST_ACCEL = 0.18  # thrust constant
-DRAG_CON = 0.05 #acts as the whole force
+DRAG_CON = 0.05 #acts as the whole force; use equation to derive Drag_cons
 
 # # the following parameters are not being used in the sample code
 #PLATFORM_WIDTH = 0.25  # landing platform width
@@ -66,16 +66,24 @@ class Dynamics(nn.Module):
         dstate_thrust_x = BOOST_ACCEL * FRAME_TIME * t.tensor([0., 0., 0., 1]) * action[1]
         dstate_trust = dstate_thrust_x+dstate_thrust_y
 
+        # #Consider random aircurrents
+        # if T <= 1: #this if loop helps to implement the random air current in the highest state of the rocket
+        #     aircurr_lim = 0.10 #limit for air currentsintensity
+        #     aircurr_lim_stddev = aircurr_lim/3 #to fall into a normal distribution range
+        #     dstate_ac = t.tensor([random.gauss(0,aircurr_lim_stddev),0.,0.,0.])
+        # elif T > 1:
+        #     dstate_ac = 0
 
-        dstate = dstate_trust + dstate_drag + dstate_grav
+        dstate = dstate_trust + dstate_drag + dstate_grav #+ dstate_ac
 
+        # Velocity
+        state = state + dstate
 
+        aircurr_lim = 0.12  # limit for air currentsintensity
+        aircurr_lim_stddev = aircurr_lim / 3  # to fall into a normal distribution range
 
-        #Velocity
-        state = state+dstate
-
-        #Position
-        step_mat = t.tensor([[1., 0., 0., 0.],
+        # Position
+        step_mat = t.tensor([[random.gauss(0, aircurr_lim_stddev), 0., 0., 0.],
                              [FRAME_TIME, 1., 0., 0.],
                             [0.,0., 1., 0.],
                             [0.,0., FRAME_TIME, 1]])
@@ -89,7 +97,6 @@ class Dynamics(nn.Module):
 # 1. nn.Sigmoid outputs values from 0 to 1, nn.Tanh from -1 to 1
 # 2. You have all the freedom to make the network wider (by increasing "dim_hidden") or deeper (by adding more lines to nn.Sequential)
 # 3. Always start with something simple
-
 
 class Controller(nn.Module):
 
@@ -140,7 +147,9 @@ class Simulation(nn.Module):
 
     @staticmethod
     def initialize_state():
-        state = [0.,0., 1.,0.]  # TODO: need batch of initial states
+        aircurr_lim = 0.12  # limit for air currentsintensity
+        aircurr_lim_stddev = aircurr_lim/3 #to fall into a normal distribution range
+        state = [random.gauss(0,aircurr_lim_stddev),0., 1.,0.]  # TODO: need batch of initial states
         return t.tensor(state, requires_grad=False).float()
 
     def error(self, state):
