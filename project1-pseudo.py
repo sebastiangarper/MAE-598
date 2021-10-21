@@ -47,37 +47,38 @@ class Dynamics(nn.Module):
         """
         action: thrust or no thrust
         state[0] = x
-        state[1] = y
-        state[2] = x_dot
+        state[1] = x_dot
+        state[2] = y
         state[3] = y_dot
         """
 
 # Initialize a matrix for new delta states
-        matrix_deltastate = []
-        for i in range(len(state)):
-
-            #Consider gravity
-            dstate_grav = t.tensor([0.,0.,0.,-GRAVITY_ACCEL*FRAME_TIME])
-
-            #Add Drag to the problem
-            dstate_drag = t.tensor([0.,0.,0.,-DRAG_CON*FRAME_TIME])
-
-            #Consider thrust
-            dstate_trust = BOOST_ACCEL * FRAME_TIME * t.tensor([0., 0., 1., 1.]) * t.cat((t.zeros(2), action[i])) #need to implement action variable into problem in a better way.
 
 
-            dstate = dstate_trust + dstate_drag + dstate_grav
-            matrix_deltastate.append(dstate)
-        dstate_mat_t = t.stack(matrix_deltastate)
+        #Consider gravity
+        dstate_grav = t.tensor([0.,0.,0.,-GRAVITY_ACCEL*FRAME_TIME])
+
+        #Add Drag to the problem
+        dstate_drag = t.tensor([0.,0.,0.,-DRAG_CON*FRAME_TIME])
+
+        #Consider thrust
+        dstate_thrust_y = BOOST_ACCEL * FRAME_TIME * t.tensor([0., -1., 0, 0]) * action[0]
+        dstate_thrust_x = BOOST_ACCEL * FRAME_TIME * t.tensor([0., 0., 0., 1]) * action[1]
+        dstate_trust = dstate_thrust_x+dstate_thrust_y
+
+
+        dstate = dstate_trust + dstate_drag + dstate_grav
+
+
 
         #Velocity
-        state = state+dstate_mat_t
+        state = state+dstate
 
         #Position
         step_mat = t.tensor([[1., 0., 0., 0.],
-                            [0., 1., 0., 0.],
-                            [FRAME_TIME, 0., 1., 0.],
-                            [0., FRAME_TIME, 0., 1]])
+                             [FRAME_TIME, 1., 0., 0.],
+                            [0.,0., 1., 0.],
+                            [0.,0., FRAME_TIME, 1]])
         state = t.matmul(state,step_mat)
 
         return state
@@ -139,29 +140,11 @@ class Simulation(nn.Module):
 
     @staticmethod
     def initialize_state():
-        state = [0.1, 1.,0.,0.]  # TODO: need batch of initial states
+        state = [0.,0., 1.,0.]  # TODO: need batch of initial states
         return t.tensor(state, requires_grad=False).float()
 
     def error(self, state):
-        return state[0] ** 2 + state[1] ** 2 +state[2] ** 2+ state[3] ** 2
-
-    # @staticmethod
-    # def initialize_state():
-    #     num = 2
-    #     randlimit = 0.25
-    #     limitdev = randlimit/3
-    #     state = [[1-random.gauss(0,limitdev), 0]]  # TODO: need batch of initial states
-    #     for i in range(num-1):
-    #         state.append([1-random.gauss(0,limitdev), 0])
-    #     return t.tensor(state, requires_grad=False).float()
-    #
-    # def error(self, state):
-    #     errorsum = 0
-    #     num = 2
-    #     for i in range(num):
-    #         errorsum+=state[i,0]**2+state[i,1]**2
-    #     return errorsum/len(state)
-
+        return state[0]**2 + state[1]**2+ state[2]**2+ state[3]**2
 
 # set up the optimizer
 # Note:
@@ -189,16 +172,16 @@ class Optimize:
     def train(self, epochs):
         for epoch in range(epochs):
             loss = self.step()
-            self.loss = loss
+            self.loss=loss
             print('[%d] loss: %.3f' % (epoch + 1, loss))
             self.visualize()
 
-    # def visualize(self):
-    #     data = np.array([self.simulation.state_trajectory[i].detach().numpy() for i in range(self.simulation.T)])
-    #     x = data[:, 0]
-    #     y = data[:, 1]
-    #     #plt.plot(x, y)
-    #     #plt.show()
+    def visualize(self):
+        data = np.array([self.simulation.state_trajectory[i].detach().numpy() for i in range(self.simulation.T)])
+        x = data[:, 2]
+        y = data[:, 3]
+        #plt.plot(x, y)
+        #plt.show()
 
 # Now it's time to run the code!
 
@@ -210,7 +193,7 @@ d = Dynamics()  # define dynamics
 c = Controller(dim_input, dim_hidden, dim_output)  # define controller
 s = Simulation(c, d, T)  # define simulation
 o = Optimize(s)  # define optimizer
-o.train(40)  # solve the optimization problem
+o.train(50)  # solve the optimization problem
 
 
 
