@@ -37,6 +37,13 @@ DRAG_CON = 0.05 #acts as the whole force; use equation to derive Drag_cons
 # 2. All math operations in "forward" has to be differentiable, e.g., default PyTorch functions.
 # 3. Do not use inplace operations, e.g., x += 1. Please see the following section for an example that does not work.
 
+# define system dynamics
+# Notes:
+# 0. You only need to modify the "forward" function
+# 1. All variables in "forward" need to be PyTorch tensors.
+# 2. All math operations in "forward" has to be differentiable, e.g., default PyTorch functions.
+# 3. Do not use inplace operations, e.g., x += 1. Please see the following section for an example that does not work.
+
 class Dynamics(nn.Module):
 
     def __init__(self):
@@ -52,42 +59,41 @@ class Dynamics(nn.Module):
         state[3] = y_dot
         """
 
-# Initialize a matrix for new delta states
+        # Initialize a matrix for new delta states
 
+        # Consider gravity
+        dstate_grav = t.tensor([0., 0., 0., -GRAVITY_ACCEL * FRAME_TIME])
 
-        #Consider gravity
-        dstate_grav = t.tensor([0.,0.,0.,-GRAVITY_ACCEL*FRAME_TIME])
+        # Add Drag to the problem
+        dstate_drag = t.tensor([0., 0., 0., -DRAG_CON * FRAME_TIME])
 
-        #Add Drag to the problem
-        dstate_drag = t.tensor([0.,0.,0.,-DRAG_CON*FRAME_TIME])
-
-        #Consider thrust
+        # Consider thrust
         dstate_thrust_y = BOOST_ACCEL * FRAME_TIME * t.tensor([0., -1., 0, 0]) * action[0]
         dstate_thrust_x = BOOST_ACCEL * FRAME_TIME * t.tensor([0., 0., 0., 1]) * action[1]
-        dstate_trust = dstate_thrust_x+dstate_thrust_y
+        dstate_trust = dstate_thrust_x + dstate_thrust_y
 
-        # #Consider random aircurrents
-        # if T <= 1: #this if loop helps to implement the random air current in the highest state of the rocket
-        #     aircurr_lim = 0.10 #limit for air currentsintensity
-        #     aircurr_lim_stddev = aircurr_lim/3 #to fall into a normal distribution range
-        #     dstate_ac = t.tensor([random.gauss(0,aircurr_lim_stddev),0.,0.,0.])
-        # elif T > 1:
-        #     dstate_ac = 0
+        # Consider random aircurrents
+        #         if T <= 1: #this if loop helps to implement the random air current in the highest state of the rocket
+        #             aircurr_lim = 0.10 #limit for air currentsintensity
+        #             aircurr_lim_stddev = aircurr_lim/3 #to fall into a normal distribution range
+        #             dstate_ac = t.tensor([random.gauss(0,aircurr_lim_stddev),0.,0.,0.])
+        #         elif T > 1:
+        #             dstate_ac = 0
 
-        dstate = dstate_trust + dstate_drag + dstate_grav #+ dstate_ac
+        dstate = dstate_trust + dstate_drag + dstate_grav  # + dstate_ac
 
         # Velocity
         state = state + dstate
 
-        aircurr_lim = 0.12  # limit for air currentsintensity
-        aircurr_lim_stddev = aircurr_lim / 3  # to fall into a normal distribution range
+        #         aircurr_lim = 0.12  # limit for air currentsintensity
+        #         aircurr_lim_stddev = aircurr_lim/3 #to fall into a normal distribution range
 
         # Position
-        step_mat = t.tensor([[random.gauss(0, aircurr_lim_stddev), 0., 0., 0.],
+        step_mat = t.tensor([[1., 0., 0., 0.],
                              [FRAME_TIME, 1., 0., 0.],
-                            [0.,0., 1., 0.],
-                            [0.,0., FRAME_TIME, 1]])
-        state = t.matmul(state,step_mat)
+                             [0., 0., 1., 0.],
+                             [0., 0., FRAME_TIME, 1]])
+        state = t.matmul(state, step_mat)
 
         return state
 
@@ -147,13 +153,13 @@ class Simulation(nn.Module):
 
     @staticmethod
     def initialize_state():
-        aircurr_lim = 0.12  # limit for air currentsintensity
-        aircurr_lim_stddev = aircurr_lim/3 #to fall into a normal distribution range
-        state = [random.gauss(0,aircurr_lim_stddev),0., 1.,0.]  # TODO: need batch of initial states
+        #         aircurr_lim = 0.12  # limit for air currentsintensity
+        #         aircurr_lim_stddev = aircurr_lim/3 #to fall into a normal distribution range
+        state = [0., 0., 1., 0.]  # TODO: need batch of initial states
         return t.tensor(state, requires_grad=False).float()
 
     def error(self, state):
-        return state[0]**2 + state[1]**2+ state[2]**2+ state[3]**2
+        return state[0] ** 2 + state[1] ** 2 + state[2] ** 2 + state[3] ** 2  # play with loss function weights
 
 # set up the optimizer
 # Note:
